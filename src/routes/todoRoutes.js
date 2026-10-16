@@ -1,34 +1,52 @@
 import express from "express";
-import db from "../db.js";
+import { db } from "../prisma/db.ts";
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  const getTodos = db.prepare("SELECT * FROM todos WHERE user_id = ?");
-  const todos = getTodos.all(req.userId);
+router.get("/", async (req, res) => {
+  const todos = await db.orm.public.Todo.where({ userId: req.userId })
+    .orderBy((todo) => todo.id.asc())
+    .all();
 
   res.json(todos);
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { task } = req.body;
-  const addTodo = db.prepare("INSERT INTO todos (user_id, task) VALUES (?, ?)");
-  addTodo.run(req.userId, task);
-  res.json({ id: addTodo.lastInsertRowid, task, completed: false });
+
+  const todo = await db.orm.public.Todo.create({
+    task,
+    userId: req.userId,
+  });
+
+  res.json(todo);
 });
 
-router.put("/:id", (req, res) => {
+router.put("/:id", async (req, res) => {
   const { completed } = req.body;
-  const updateTodo = db.prepare("UPDATE todos SET completed = ? WHERE id = ?");
-  updateTodo.run(completed, req.params.id);
-  res.json({ id: req.params.id, completed });
+  const id = Number(req.params.id);
+
+  const todo = await db.orm.public.Todo.where({ id, userId: req.userId }).update({
+    // The client sends 0/1, so normalise to a boolean before writing
+    completed: Boolean(completed),
+  });
+
+  if (!todo) {
+    return res.status(404).json({ message: "Todo not found" });
+  }
+
+  res.json(todo);
 });
 
-router.delete("/:id", (req, res) => {
-  const deleteTodo = db.prepare(
-    "DELETE FROM todos WHERE id = ? AND user_id = ?",
-  );
-  deleteTodo.run(req.params.id, req.userId);
+router.delete("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+
+  const todo = await db.orm.public.Todo.where({ id, userId: req.userId }).delete();
+
+  if (!todo) {
+    return res.status(404).json({ message: "Todo not found" });
+  }
+
   res.json({ message: "Todo deleted" });
 });
 

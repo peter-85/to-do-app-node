@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
-import db from "../db.js";
+import { db } from "../prisma/db.ts";
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const token = req.header("authorization"); // Get the token from the Authorization header
   if (!token) {
     return res.status(401).json({ message: "No token provided" });
@@ -10,8 +10,7 @@ const authMiddleware = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET); // Verify the token using the secret key
 
-    const getUser = db.prepare("SELECT id FROM users WHERE id = ?");
-    const user = getUser.get(decoded.id);
+    const user = await db.orm.public.User.select("id").first({ id: decoded.id });
     if (!user) {
       return res.status(401).json({ message: "Invalid token" });
     }
