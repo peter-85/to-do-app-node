@@ -1,40 +1,36 @@
 import express from "express";
 import bcrypt from "bcryptjs";
-import prisma from "../prismaClient.js";
 import jwt from "jsonwebtoken";
+import { db } from "../prisma/db.ts";
 
 const router = express.Router();
 
-// Define your authentication routes here
+const DEFAULT_TODO = "Hello :) Add your first todo!";
 
 router.post("/register", async (req, res) => {
   const { username, password } = req.body;
 
-  //hash the password before storing it in the database
-  const hashedPassword = bcrypt.hashSync(password, 10);
-
   try {
-    const user = await prisma.user.create({
-      data: {
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // The user and their first todo are created together or not at all
+    const user = await db.transaction(async (tx) => {
+      const created = await tx.orm.public.User.create({
         username,
         password: hashedPassword,
-      },
+      });
+
+      await tx.orm.public.Todo.create({
+        task: DEFAULT_TODO,
+        userId: created.id,
+      });
+
+      return created;
     });
 
-    // now that we have a user, I want to add their first todo for them
-    const defaultTodo = `Hello :) Add your first todo!`;
-    await prisma.todo.create({
-      data: {
-        task: defaultTodo,
-        userId: user.id,
-      },
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
     });
-
-    const token = jwt.sign(
-      { id: result.lastInsertRowid },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" },
-    );
 
     res.status(201).json({ token });
   } catch (error) {
@@ -43,20 +39,18 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // Retrieve the user from the database (replace this with your actual database logic)
-    const getUser = db.prepare("SELECT * FROM users WHERE username = ?");
-    const user = getUser.get(username);
+    const user = await db.orm.public.User.where({ username }).first();
 
     if (!user) {
       return res.status(404).json({ message: "Invalid credentials" });
     }
 
     // Compare the provided password with the hashed password in the database
-    const isPasswordValid = bcrypt.compareSync(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
       return res.status(404).json({ message: "Invalid credentials" });
