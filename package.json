@@ -1,11 +1,12 @@
 {
-  "name": "backend-project-1",
+  "name": "To do app",
   "version": "1.0.0",
-  "description": "A simple backend server",
+  "description": "To Do app: Express 5 REST API backed by Prisma 8 on PostgreSQL, with JWT authentication, bcrypt password hashing and a static frontend.",
   "main": "server.js",
   "type": "module",
   "scripts": {
     "dev": "node --watch --env-file=.env ./src/server.js",
+    "start": "node src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "contract:emit": "prisma contract emit"
   },

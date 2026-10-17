@@ -1,0 +1,14 @@
+node_modules
+.git
+.gitignore
+.env
+.env.*
+data.db
+*.log
+npm-debug.log*
+Dockerfile
+.dockerignore
+docker-compose.yml
+.vscode
+dist
+prisma-8.md

@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    image: backend-project-1:local
+    ports:
+      - "8080:8080"
+    # Secrets stay out of the image and are injected at run time
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+    restart: unless-stopped
