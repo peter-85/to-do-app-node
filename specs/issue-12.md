@@ -1,6 +1,6 @@
 # Spec: #12 Due dates for todos
 
-Status: draft
+Status: approved
 Issue: https://github.com/peter-85/to-do-app-node/issues/12
 
 ## Goal
@@ -10,18 +10,19 @@ Let users set an optional due date when creating a todo, and make overdue todos 
 ## Requirements
 
 - The `Todo` model has a new nullable `dueDate` field that stores a calendar date with no time; existing rows keep `dueDate = null`.
-- `POST /todos` accepts an optional `dueDate` in the body alongside `task`, as a `YYYY-MM-DD` string.
+- `POST /todos` accepts an optional `dueDate` in the body alongside `task`, as an ISO 8601 date (`YYYY-MM-DD`) or date-time (`YYYY-MM-DD` followed by `T` and a time, with or without a time-zone offset). Only the date as written in the string is stored; the time and any offset are dropped without converting to UTC.
 - `POST /todos` with no `dueDate`, or with `dueDate: null`, creates a todo with `dueDate = null`, exactly as today.
 - `POST /todos` with a valid `dueDate` stores it and returns it in the created todo as `YYYY-MM-DD`.
 - `POST /todos` accepts a valid `dueDate` that is already in the past.
-- `POST /todos` with a `dueDate` that is not a valid date returns `400` with `{ message: "Invalid dueDate" }` and creates no row.
+- `POST /todos` with a `dueDate` that is not an ISO 8601 date or date-time (including other formats such as `12/01/2026`, and numbers), or whose date is not a real calendar date (such as `2026-02-30`), returns `400` with `{ message: "Invalid dueDate" }` and creates no row.
 - `GET /todos` returns `dueDate` on every todo as `YYYY-MM-DD` (`null` when unset).
+- `GET /todos` keeps its current order (`id` ascending).
 - The API does not compute or return an `overdue` field.
 - `PUT /todos/:id` does not read or change `dueDate`.
 - The add-todo input row in `public/index.html` has an optional date picker next to the task input.
 - `addTodo()` sends the picked date as `dueDate`, or omits it when none is picked, and clears the picker after a successful add.
 - A todo with a due date shows that date in its card.
-- Overdue is worked out in the frontend: a todo whose due date is before the browser's local date and that is not completed is shown with a distinct "overdue" style.
+- Overdue is worked out in the frontend: a todo whose due date is before the browser's local date and that is not completed is shown with a distinct "overdue" style: a red border or text on the card plus an "Overdue" label next to the due date.
 - Completed todos and todos without a due date never get the overdue style.
 
 ## Acceptance criteria
@@ -29,14 +30,19 @@ Let users set an optional due date when creating a todo, and make overdue todos 
 - `POST /todos` with `{ task: "a" }` returns `200` and a todo with `dueDate: null`.
 - `POST /todos` with `{ task: "a", dueDate: "2026-12-01" }` returns `200` and a todo with `dueDate: "2026-12-01"`.
 - `POST /todos` with `{ task: "b", dueDate: "2020-01-01" }` returns `200` and a todo with `dueDate: "2020-01-01"`.
+- `POST /todos` with `{ task: "c", dueDate: "2026-12-01T10:00:00Z" }` returns `200` and a todo with `dueDate: "2026-12-01"`.
+- `POST /todos` with `{ task: "d", dueDate: "2026-12-01T23:30:00-05:00" }` returns `200` and a todo with `dueDate: "2026-12-01"` (not `"2026-12-02"`).
+- `POST /todos` with `dueDate` set to `"2026-02-30"`, `"12/01/2026"` or `1764547200000` returns `400` with `{ message: "Invalid dueDate" }` and creates no row.
 - `POST /todos` with `{ task: "a", dueDate: "not-a-date" }` returns `400` with `{ message: "Invalid dueDate" }`, and a following `GET /todos` does not include a todo with task `"a"`.
 - `GET /todos` for a user whose todos predate the migration returns them all with `dueDate: null`.
 - No todo returned by `GET /todos` has an `overdue` field.
+- `GET /todos` returns todos in `id` ascending order, whatever their due dates.
 - `PUT /todos/:id` with `{ completed: 1 }` on a todo with a due date returns the todo with the same `dueDate`.
-- In the UI, an open todo due yesterday (by the browser's local date) has the overdue style; the same todo after "Done" does not.
+- In the UI, an open todo due yesterday (by the browser's local date) has the overdue style (red border or text and an "Overdue" label); the same todo after "Done" does not.
 - In the UI, a todo created with a past due date shows as overdue immediately after it is added.
 - In the UI, an open todo due today or later (by the browser's local date), and a todo with no due date, do not have the overdue style.
 - `npx prisma db update --dry-run` against an existing database shows only an added nullable date column on `Todo`.
+- All criteria above are checked manually; this issue adds no automated tests.
 
 ## Files likely affected
 
@@ -45,7 +51,7 @@ Let users set an optional due date when creating a todo, and make overdue todos 
 - `migrations/`: new contract snapshot/ref produced by the Prisma CLI.
 - `src/routes/todoRoutes.js`: `POST /` reads, validates and stores `dueDate`.
 - `public/index.html`: date picker in the input row, `addTodo()` payload, due-date display and overdue styling in `renderTodos()`.
-- `public/styles.css`: overdue style.
+- `public/styles.css`: overdue style (red border or text, "Overdue" label).
 - `README.md`: `POST /todos` body in the API table becomes `{ task, dueDate? }`.
 
 ## Out of scope
@@ -55,31 +61,33 @@ Let users set an optional due date when creating a todo, and make overdue todos 
 - Sorting or filtering by due date, or an "Overdue" tab.
 - Server-side validation of `task` (it is not validated today).
 - Setting a due date on the default todo created at registration.
+- A test setup or automated tests (to be added in a separate issue).
 
 ## Open questions
 
-- **Q1:** Is a due date a calendar date or a date and time?
-  - Proposed: Calendar date only. The API takes and returns `YYYY-MM-DD`, and the column stores a date with no time.
-  - Blocking: yes
-- **Q2:** Which "today" decides overdue: the server's or the user's?
-  - Proposed: The browser's local date. Overdue is worked out in the frontend, and the API does not return an `overdue` field.
-  - Blocking: yes
-- **Q3:** Can a todo be created with a due date already in the past?
-  - Proposed: Yes. It is accepted and immediately shows as overdue.
-  - Blocking: yes
-- **Q4:** What does an invalid `dueDate` return?
-  - Proposed: `400` with `{ message: "Invalid dueDate" }`, matching the `{ message }` shape the existing 404s use.
-  - Blocking: yes
-- **Q5:** How should "stand out" look?
-  - Proposed: A red border or text on the card plus an "Overdue" label next to the due date, added to `styles.css`.
-  - Blocking: no
-- **Q6:** Should list order change?
-  - Proposed: No. Keep `id` ascending.
-  - Blocking: no
-- **Q7:** The project has no test suite (`npm test` exits 1), so the API criteria can't run as automated tests yet. Should this issue add a test setup?
-  - Proposed: No. Check the criteria manually now, and add a test harness in a separate issue.
-  - Blocking: no
+_None._
 
 ## Decisions
 
-_None yet._
+- **Is a due date a calendar date or a date and time? (Q1)**
+  Calendar date only. The API takes and returns `YYYY-MM-DD`, and the column stores a date with no time. Decided by peter-85, 2026-11-17.
+- **Which "today" decides overdue? (Q2)**
+  The browser's local date. Overdue is worked out in the frontend, and the API does not return an `overdue` field. Decided by peter-85, 2026-11-17.
+- **Can a todo be created with a due date in the past? (Q3)**
+  Yes. It is accepted and immediately shows as overdue. Decided by peter-85, 2026-11-17.
+- **What does an invalid `dueDate` return? (Q4)**
+  `400` with `{ message: "Invalid dueDate" }`, matching the `{ message }` shape the existing 404s use. Decided by peter-85, 2026-11-17.
+- **How should "stand out" look? (Q5)**
+  A red border or text on the card plus an "Overdue" label next to the due date, added to `styles.css`. Decided by peter-85, 2026-11-17.
+- **Should list order change? (Q6)**
+  No. Keep `id` ascending. Decided by peter-85, 2026-11-17.
+- **Should this issue add a test setup? (Q7)**
+  No. Check the criteria manually now, and add a test harness in a separate issue. Decided by peter-85, 2026-11-17.
+- **What counts as an invalid `dueDate`? (Q8)**
+  Lenient: any string that parses as a date is accepted, including full timestamps, and only its date part is stored. Strings that don't parse return `400`. Decided by peter-85, 2026-11-17.
+- **Which date is stored for a timestamp with a time-zone offset? (Q9)**
+  The date as written in the string; the offset is ignored and nothing is converted to UTC. Decided by peter-85, 2026-11-17.
+- **Is an impossible date like `2026-02-30` rejected or rolled over? (Q10)**
+  Rejected with `400` and `{ message: "Invalid dueDate" }`. Decided by peter-85, 2026-11-17.
+- **Which date formats are accepted? (Q11)**
+  Only ISO 8601 dates and date-times (`YYYY-MM-DD`, optionally followed by `T` and a time). Other formats and numbers return `400` with `{ message: "Invalid dueDate" }`. This narrows Q8's "any string that parses as a date". Decided by peter-85, 2026-11-17.
