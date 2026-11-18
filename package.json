@@ -14,15 +14,15 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/orm-postgres": "^8.0.0-rc.17",
+    "@prisma/orm-postgres": "8.0.0-rc.18",
     "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.7",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
-    "@prisma/cli-engine": "^0.7.0",
+    "@prisma/cli-engine": "0.7.0",
     "@types/node": "^26.6.5",
-    "prisma": "^8.0.0-rc.22"
+    "prisma": "8.0.0-rc.23"
   }
 }
