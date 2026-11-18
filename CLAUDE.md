@@ -16,7 +16,7 @@ npx prisma db migrate    # apply planned migrations instead
 docker compose up --build
 ```
 
-There is no test suite or linter. `npm test` is a placeholder that exits 1.
+`npm test` runs the API tests in `test/` (`node:test` + `fetch`, no extra dependencies). They start the app from `src/app.js` on a random port and run against `DATABASE_URL_TEST` (required; set it in `.env` locally, never to the dev or production DB). Tests register users with random names, so no cleanup is needed. After a new migration, apply it to the test DB with `npx prisma db migrate --db <DATABASE_URL_TEST>`. In CI, the `test` job in `.github/workflows/prisma-deploy.yml` runs them against a throwaway Postgres service container (after applying the migrations), and `deploy` has `needs: test`, so failing tests block every deploy. There is no linter.
 
 The build (`scripts/build.mjs`, esbuild) exists for Prisma Compute, which deploys only the build output, without `node_modules`, and ignores the Dockerfile. Every npm dependency is bundled into `dist/server.mjs`, so a new dependency must be bundleable (mark optional native modules such as `pg-native` as external). `src/server.js` serves `public/` from next to itself when present (`dist/public`), otherwise from `../public`. Local dev (`npm run dev`) and the Dockerfile still run `src/` directly. The Prisma Console requires `npm start` to run a file inside tsconfig `outDir` (`dist`), so keep `start` pointed at the build output.
 
@@ -25,7 +25,7 @@ Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT`
 ## Runtime model
 
 - Requires **Node.js 24+**. The project is plain ESM JavaScript, but `src/prisma/db.ts` is TypeScript imported directly from `.js` files (`import { db } from "../prisma/db.ts"`). Node strips the types at load time; `tsconfig.json` is for editor type hints only. Keep the `.ts` extension in import paths and use only erasable TS syntax (no enums, namespaces, parameter properties) in `.ts` files.
-- Express 5 serves both the REST API and the static frontend in `public/` from one process (`src/server.js`).
+- Express 5 serves both the REST API and the static frontend in `public/` from one process. `src/app.js` builds and exports the app; `src/server.js` only calls `listen`, so tests can import the app without starting a server.
 
 ## Prisma 8 (contract-first — differs from Prisma ≤7)
 
@@ -48,7 +48,7 @@ Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT`
 
 ## Auth flow
 
-- `POST /auth/register` hashes the password with bcryptjs and, in one transaction, creates the user plus a default first todo; returns a JWT (`{ id }` payload, 1h expiry).
+- `POST /auth/register` hashes the password with bcryptjs and, in one transaction, creates the user plus a default first todo; returns a JWT (`{ id }` payload, 1h expiry). A taken username (`sqlState` `23505`) returns **409**; other errors return 503.
 - `POST /auth/login` returns `{ token }`; invalid credentials return **404** (not 401), DB errors return 503.
 - `src/middleware/authMiddleware.js` is mounted on `/todos` only. It reads the **raw JWT from the `Authorization` header (no `Bearer` prefix)**, verifies it, confirms the user still exists, and sets `req.userId`.
 - Every todo query in `src/routes/todoRoutes.js` is scoped by `userId: req.userId` — keep that invariant for any new todo route so users can't touch each other's rows.
