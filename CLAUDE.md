@@ -43,7 +43,8 @@ Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT`
 - `module.mjs` (app root, module name `to-do-app`) and `src/service.mts` (the `compute()` service with a `db` dependency) are the deploy declaration; `prisma.config.ts` has the `composer` section pointing at `module.mjs`. `.github/workflows/prisma-deploy.yml` builds and deploys on every branch push (default branch = production, other branches = previews).
 - The Console project must be named exactly like the module (`to-do-app`): the deploy finds its project by that name.
 - **Deploys only replay committed migrations** and never create schema. Every schema change: edit `contract.prisma` → `npm run contract:emit` → `npx prisma migration plan --name <slug>` → commit `migrations/` with it. A deploy without an authored path fails with `MIGRATION_PATH_NOT_FOUND`.
-- On Compute, `DATABASE_URL` is the placeholder `"-"`. `src/prisma/db.ts` falls back to `service.load().db.url` (the Composer binding) when `DATABASE_URL` is missing or `"-"`; everywhere else it uses `DATABASE_URL`. `PORT` is exported by the platform. `JWT_SECRET` must be set as a platform environment variable (production and preview).
+- **Two separate databases.** Compute uses the Composer-managed `database` (production, plus a fresh one per preview branch); Render and local `.env` use the older "To do database". They share no data; apply each migration to the Render DB with `npx prisma db migrate`.
+- `src/prisma/db.ts` uses the Composer binding (`service.load().db.url`) whenever it exists, i.e. on Compute, even if a `DATABASE_URL` is set there (Composer pins it to `"-"` or leaves an older value). Without a binding (local, Docker, Render) it uses `DATABASE_URL`. Do not add `DATABASE_URL` in the Console; the name is reserved. `PORT` is exported by the platform. `JWT_SECRET` must be set as a platform environment variable (production and preview).
 
 ## Auth flow
 

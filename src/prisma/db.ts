@@ -6,14 +6,20 @@ import contractJson from './contract.json' with { type: 'json' };
 
 export const contract = contractFromJson<Contract>(contractJson);
 
-// Local dev, Docker and Render pass a real DATABASE_URL. On Prisma Compute,
-// Composer pins DATABASE_URL to the placeholder "-" and hands the database to
-// the service as a binding instead, read through service.load().
+// On Prisma Compute the database is the Composer-managed one, handed to the
+// service as a binding (service.load()). It wins over DATABASE_URL there:
+// Composer pins DATABASE_URL to "-", or leaves an older value in place that
+// points at a different database. Everywhere else (local dev, Docker, Render)
+// there is no binding, so DATABASE_URL is used.
 async function databaseUrl(): Promise<string> {
-  const fromEnv = process.env['DATABASE_URL'];
-  if (fromEnv && fromEnv !== '-') return fromEnv;
   const { default: service } = await import('../service.mts');
-  return service.load().db.url;
+  try {
+    return service.load().db.url;
+  } catch (noBinding) {
+    const fromEnv = process.env['DATABASE_URL'];
+    if (fromEnv && fromEnv !== '-') return fromEnv;
+    throw noBinding;
+  }
 }
 
 export const db = postgres({
