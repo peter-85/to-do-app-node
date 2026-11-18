@@ -158,3 +158,86 @@ test("users cannot see, update or delete each other's todos", async () => {
   assert.ok(stillThere);
   assert.equal(stillThere.completed, false);
 });
+
+// --- due dates (#12) -------------------------------------------------------
+
+async function createTodo(token, body) {
+  return call("POST", "/todos", { token, body });
+}
+
+test("a todo created without a dueDate has dueDate null", async () => {
+  const user = await registerUser();
+  for (const body of [{ task: "a" }, { task: "a2", dueDate: null }]) {
+    const res = await createTodo(user.token, body);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.dueDate, null);
+  }
+});
+
+test("a valid dueDate is stored as YYYY-MM-DD, including past dates and date-times", async () => {
+  const user = await registerUser();
+  const cases = [
+    ["a", "2026-12-01", "2026-12-01"],
+    ["b", "2020-01-01", "2020-01-01"], // already in the past
+    ["c", "2026-12-01T10:00:00Z", "2026-12-01"],
+    ["d", "2026-12-01T23:30:00-05:00", "2026-12-01"], // offset ignored, not converted to UTC
+  ];
+  for (const [task, dueDate, expected] of cases) {
+    const res = await createTodo(user.token, { task, dueDate });
+    assert.equal(res.status, 200, `${dueDate} should be accepted`);
+    assert.equal(res.body.dueDate, expected);
+  }
+
+  // GET returns the same dates
+  const list = await call("GET", "/todos", { token: user.token });
+  for (const [task, , expected] of cases) {
+    assert.equal(list.body.find((t) => t.task === task).dueDate, expected);
+  }
+});
+
+test("an invalid dueDate returns 400 and creates no row", async () => {
+  const user = await registerUser();
+  const invalid = ["2026-02-30", "12/01/2026", 1764547200000, "not-a-date"];
+  for (const dueDate of invalid) {
+    const res = await createTodo(user.token, { task: `bad ${dueDate}`, dueDate });
+    assert.equal(res.status, 400, `${dueDate} should be rejected`);
+    assert.deepEqual(res.body, { message: "Invalid dueDate" });
+  }
+
+  const list = await call("GET", "/todos", { token: user.token });
+  assert.ok(!list.body.some((t) => t.task.startsWith("bad ")));
+});
+
+test("GET /todos returns dueDate on every todo, no overdue field, in id order", async () => {
+  const user = await registerUser();
+  // Due dates deliberately out of id order
+  await createTodo(user.token, { task: "late", dueDate: "2030-01-01" });
+  await createTodo(user.token, { task: "early", dueDate: "2020-01-01" });
+  await createTodo(user.token, { task: "none" });
+
+  const list = await call("GET", "/todos", { token: user.token });
+  assert.equal(list.status, 200);
+
+  // The default todo from registration has no due date
+  assert.equal(list.body[0].dueDate, null);
+  for (const todo of list.body) {
+    assert.ok("dueDate" in todo);
+    assert.ok(!("overdue" in todo));
+  }
+
+  const ids = list.body.map((t) => t.id);
+  assert.deepEqual(ids, [...ids].sort((x, y) => x - y));
+});
+
+test("PUT /todos/:id keeps the dueDate", async () => {
+  const user = await registerUser();
+  const created = await createTodo(user.token, { task: "due", dueDate: "2020-01-01" });
+
+  const updated = await call("PUT", `/todos/${created.body.id}`, {
+    token: user.token,
+    body: { completed: 1, dueDate: "2030-12-31" }, // dueDate is ignored by PUT
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.completed, true);
+  assert.equal(updated.body.dueDate, "2020-01-01");
+});

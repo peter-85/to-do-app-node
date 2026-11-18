@@ -123,6 +123,20 @@
       renderTodos();
     }
 
+    // The browser's local date as YYYY-MM-DD
+    function localToday() {
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${now.getFullYear()}-${month}-${day}`;
+    }
+
+    // Overdue: an open todo whose due date is before today. YYYY-MM-DD strings
+    // compare correctly as plain strings.
+    function isOverdue(todo) {
+      return Boolean(todo.dueDate) && !todo.completed && todo.dueDate < localToday();
+    }
+
     function renderTodos() {
       // need to add filtering logic in here
 
@@ -140,9 +154,14 @@
         })
         .forEach((todo, todoIndex) => {
           const taskIndex = todo.id;
+          const overdue = isOverdue(todo);
+          const dueLine = todo.dueDate
+            ? `<p class="todo-due">Due ${todo.dueDate}${overdue ? ' <span class="overdue-label">Overdue</span>' : ""}</p>`
+            : "";
           todoList += `
-            <div class="card todo-item">
+            <div class="card todo-item${overdue ? " todo-overdue" : ""}">
                 <p>${todo.task}</p>
+                ${dueLine}
                 <div class="todo-buttons">
                     <button onclick="updateTodo(${taskIndex})" ${todo.completed ? "disabled" : ""}>
                         <h6>Done</h6>
@@ -157,6 +176,7 @@
       todoList += `
         <div class="input-container">
             <input id="todoInput" placeholder="Add task" />
+            <input id="dueDateInput" type="date" aria-label="Due date (optional)" />
             <button onclick="addTodo()">
                 <i class="fa-solid fa-plus"></i>
             </button>
@@ -296,21 +316,28 @@
     async function addTodo() {
       // have to access this val later as it's rendered with js
       const todoInput = document.getElementById("todoInput");
+      const dueDateInput = document.getElementById("dueDateInput");
       const task = todoInput.value;
+      const dueDate = dueDateInput.value;
 
       if (!task) {
         return;
       }
 
-      await fetch(apiBase + "todos", {
+      const response = await fetch(apiBase + "todos", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: token,
         },
-        body: JSON.stringify({ task }),
+        // Omit dueDate when no date is picked
+        body: JSON.stringify(dueDate ? { task, dueDate } : { task }),
       });
+      if (!response.ok) {
+        return;
+      }
       todoInput.value = "";
+      dueDateInput.value = "";
       fetchTodos();
     }
 

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "column.public.Todo.dueDate",
+    "label": "Add column \"dueDate\" to \"Todo\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "dueDate",
+        "table": "Todo"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"dueDate\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "Todo",
+          "dueDate"
+        ],
+        "expectation": {
+          "expects": "absent",
+          "object": "column \"dueDate\" on \"Todo\""
+        }
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"dueDate\"",
+        "sql": "ALTER TABLE \"public\".\"Todo\" ADD COLUMN \"dueDate\" date"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"dueDate\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "Todo",
+          "dueDate"
+        ],
+        "expectation": {
+          "expects": "present",
+          "object": "column \"dueDate\" on \"Todo\""
+        }
+      },
+      {
+        "description": "verify column \"dueDate\" has type \"date\"",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_attribute\" AS \"a\" INNER JOIN \"pg_class\" AS \"c\" ON \"c\".\"oid\" = \"a\".\"attrelid\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"relnamespace\" WHERE (\"n\".\"nspname\" = $1 AND \"c\".\"relname\" = $2 AND \"a\".\"attname\" = $3 AND (format_type(\"a\".\"atttypid\", \"a\".\"atttypmod\")) = $4 AND NOT (\"a\".\"attisdropped\"))) AS \"result\"",
+        "params": [
+          "public",
+          "Todo",
+          "dueDate",
+          "date"
+        ]
+      }
+    ]
+  }
+]
