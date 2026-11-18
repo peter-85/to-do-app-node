@@ -35,7 +35,7 @@ Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT`
 - Query API: `db.orm.public.<Model>` with a fluent builder — `.where({...}).first()`, `.all()`, `.orderBy(t => t.id.asc())`, `.select("id")`, `.update({...})`, `.delete()`. `create`/`update` take fields directly (no `data:` wrapper) and return the row; `update`/`delete` on a `where` return a falsy value when nothing matched (routes use this for 404s).
 - Transactions: `db.transaction(async (tx) => { ... })` commits on return, rolls back on throw; use `tx.orm...` inside.
 - Constraint violations throw `SqlQueryError` with a Postgres `sqlState` (e.g. `23505` unique violation), not `P2002`.
-- `prisma.config.ts` points the CLI at the contract and reads `DATABASE_URL` via dotenv.
+- `prisma.config.ts` points the CLI at the contract and reads `DATABASE_URL` via dotenv. Import `definePrismaConfig` from `prisma/config` (not `@prisma/cli-engine`, though it is the same function): the Prisma Console setup only edits a config whose default export is `definePrismaConfig({...})` from `prisma/config`.
 - `prisma-8.md` is a Prisma 8 reference guide; consult it for API details.
 
 ## Auth flow
