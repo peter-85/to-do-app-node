@@ -38,6 +38,13 @@ Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT`
 - `prisma.config.ts` points the CLI at the contract and reads `DATABASE_URL` via dotenv. Import `definePrismaConfig` from `prisma/config` (not `@prisma/cli-engine`, though it is the same function): the Prisma Console setup only edits a config whose default export is `definePrismaConfig({...})` from `prisma/config`.
 - `prisma-8.md` is a Prisma 8 reference guide; consult it for API details.
 
+## Prisma Compute deploys (Composer)
+
+- `module.mjs` (app root, module name `to-do-app`) and `src/service.mts` (the `compute()` service with a `db` dependency) are the deploy declaration; `prisma.config.ts` has the `composer` section pointing at `module.mjs`. `.github/workflows/prisma-deploy.yml` builds and deploys on every branch push (default branch = production, other branches = previews).
+- The Console project must be named exactly like the module (`to-do-app`): the deploy finds its project by that name.
+- **Deploys only replay committed migrations** and never create schema. Every schema change: edit `contract.prisma` → `npm run contract:emit` → `npx prisma migration plan --name <slug>` → commit `migrations/` with it. A deploy without an authored path fails with `MIGRATION_PATH_NOT_FOUND`.
+- On Compute, `DATABASE_URL` is the placeholder `"-"`. `src/prisma/db.ts` falls back to `service.load().db.url` (the Composer binding) when `DATABASE_URL` is missing or `"-"`; everywhere else it uses `DATABASE_URL`. `PORT` is exported by the platform. `JWT_SECRET` must be set as a platform environment variable (production and preview).
+
 ## Auth flow
 
 - `POST /auth/register` hashes the password with bcryptjs and, in one transaction, creates the user plus a default first todo; returns a JWT (`{ id }` payload, 1h expiry).
