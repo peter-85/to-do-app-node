@@ -7,8 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm install
 npm run dev              # node --watch with .env loaded; serves API + frontend on :8080
-npm start                # no watch, no .env loading (env must come from the process — used in Docker)
-npm run build            # bundle to dist/server.mjs (+ dist/public/) for Prisma Compute; run with `node dist/server.mjs`
+npm run build            # bundle to dist/server.mjs (+ dist/public/) for Prisma Compute
+npm start                # runs the build output (dist/server.mjs); no .env loading. Run `npm run build` first
+node src/server.js       # what the Dockerfile runs: source directly, no build
 npm run contract:emit    # regenerate src/prisma/contract.json + contract.d.ts after editing contract.prisma
 npx prisma db update     # push the contract to the database (add --dry-run to preview, --db <url> to target another DB)
 npx prisma db migrate    # apply planned migrations instead
@@ -17,7 +18,7 @@ docker compose up --build
 
 There is no test suite or linter. `npm test` is a placeholder that exits 1.
 
-The build (`scripts/build.mjs`, esbuild) exists for Prisma Compute, which deploys only the build output, without `node_modules`, and ignores the Dockerfile. Every npm dependency is bundled into `dist/server.mjs`, so a new dependency must be bundleable (mark optional native modules such as `pg-native` as external). `src/server.js` serves `public/` from next to itself when present (`dist/public`), otherwise from `../public`. Local dev and Docker still run `src/` directly.
+The build (`scripts/build.mjs`, esbuild) exists for Prisma Compute, which deploys only the build output, without `node_modules`, and ignores the Dockerfile. Every npm dependency is bundled into `dist/server.mjs`, so a new dependency must be bundleable (mark optional native modules such as `pg-native` as external). `src/server.js` serves `public/` from next to itself when present (`dist/public`), otherwise from `../public`. Local dev (`npm run dev`) and the Dockerfile still run `src/` directly. The Prisma Console requires `npm start` to run a file inside tsconfig `outDir` (`dist`), so keep `start` pointed at the build output.
 
 Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT` (default 8080).
 
