@@ -42,7 +42,7 @@ Let users set an optional due date when creating a todo, and make overdue todos 
 - In the UI, a todo created with a past due date shows as overdue immediately after it is added.
 - In the UI, an open todo due today or later (by the browser's local date), and a todo with no due date, do not have the overdue style.
 - `npx prisma db update --dry-run` against an existing database shows only an added nullable date column on `Todo`.
-- All criteria above are checked manually; this issue adds no automated tests.
+- The API criteria above are covered by automated tests in `test/api.test.js`; the UI criteria are checked manually.
 
 ## Files likely affected
 
@@ -61,7 +61,6 @@ Let users set an optional due date when creating a todo, and make overdue todos 
 - Sorting or filtering by due date, or an "Overdue" tab.
 - Server-side validation of `task` (it is not validated today).
 - Setting a due date on the default todo created at registration.
-- A test setup or automated tests (to be added in a separate issue).
 
 ## Open questions
 
@@ -81,8 +80,8 @@ _None._
   A red border or text on the card plus an "Overdue" label next to the due date, added to `styles.css`. Decided by peter-85, 2026-11-17.
 - **Should list order change? (Q6)**
   No. Keep `id` ascending. Decided by peter-85, 2026-11-17.
-- **Should this issue add a test setup? (Q7)**
-  No. Check the criteria manually now, and add a test harness in a separate issue. Decided by peter-85, 2026-11-17.
+- **Should this issue add tests? (Q7)**
+  Yes. The API test suite in `test/` (merged in #22) now exists, so the API criteria get automated tests there; the UI criteria are checked manually. Decided by peter-85, 2026-11-18.
 - **What counts as an invalid `dueDate`? (Q8)**
   Lenient: any string that parses as a date is accepted, including full timestamps, and only its date part is stored. Strings that don't parse return `400`. Decided by peter-85, 2026-11-17.
 - **Which date is stored for a timestamp with a time-zone offset? (Q9)**

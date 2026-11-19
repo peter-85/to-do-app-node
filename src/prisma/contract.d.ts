@@ -23,7 +23,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'63e9423a77d7b6db5bb3864c775f4fe47779fcf57654e1f6f29ec29c3d303fa5'>;
+  StorageHashBase<'d3088eb2232fe22613f750a5738c02c042be255229cad742ed1865b676464d93'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -310,6 +310,7 @@ export type StorageColumnInputTypes = ColumnTypesFromStorage<
 export namespace Models {
   export type public_Todo = {
     completed: FieldOutputTypes['public']['Todo']['completed'];
+    dueDate: FieldOutputTypes['public']['Todo']['dueDate'];
     id: FieldOutputTypes['public']['Todo']['id'];
     task: FieldOutputTypes['public']['Todo']['task'];
     userId: FieldOutputTypes['public']['Todo']['userId'];
@@ -360,6 +361,12 @@ type ContractBase = Omit<
                     readonly kind: 'literal';
                     readonly value: DefaultLiteralValue<'pg/bool@1', false>;
                   };
+                  readonly many: false;
+                };
+                readonly dueDate: {
+                  readonly dataType: 'pg/date';
+                  readonly codecId: 'pg/date-string@1';
+                  readonly nullable: true;
                   readonly many: false;
                 };
                 readonly id: {
@@ -464,6 +471,10 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
               };
+              readonly dueDate: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/date-string@1' };
+              };
               readonly id: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
@@ -493,6 +504,7 @@ type ContractBase = Omit<
               readonly namespaceId: 'public';
               readonly fields: {
                 readonly completed: { readonly column: 'completed' };
+                readonly dueDate: { readonly column: 'dueDate' };
                 readonly id: { readonly column: 'id' };
                 readonly task: { readonly column: 'task' };
                 readonly userId: { readonly column: 'userId' };

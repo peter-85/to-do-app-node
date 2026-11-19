@@ -11,6 +11,7 @@ model Todo {
   id        Int       @id @default(autoincrement())
   task      String
   completed Boolean   @default(false)
+  dueDate   Date?
   userId    Int   
   user      User      @relation(fields: [userId], references: [id])
 }

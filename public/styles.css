@@ -175,3 +175,24 @@ hr {
     gap: 1rem;
   }
 }
+
+.input-container input[type="date"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.todo-item .todo-due {
+  font-weight: 400;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.todo-overdue {
+  border: 2px solid #e5484d !important;
+}
+
+.overdue-label {
+  color: #e5484d;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}

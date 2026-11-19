@@ -1,5 +1,6 @@
 import express from "express";
 import { db } from "../prisma/db.ts";
+import { parseDueDate } from "../utils/dueDate.js";
 
 const router = express.Router();
 
@@ -14,8 +15,14 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   const { task } = req.body;
 
+  const dueDate = parseDueDate(req.body.dueDate);
+  if (dueDate === undefined) {
+    return res.status(400).json({ message: "Invalid dueDate" });
+  }
+
   const todo = await db.orm.public.Todo.create({
     task,
+    dueDate,
     userId: req.userId,
   });
 

@@ -125,7 +125,7 @@ register or login (no `Bearer` prefix).
 | `POST`   | `/auth/register` | No   | `{ username, password }`      | `201`   | Also creates the user's first todo   |
 | `POST`   | `/auth/login`    | No   | `{ username, password }`      | `200`   | Returns `{ token }`                  |
 | `GET`    | `/todos`         | Yes  | —                             | `200`   | Returns only the caller's todos      |
-| `POST`   | `/todos`         | Yes  | `{ task }`                    | `200`   | Creates a todo for the caller        |
+| `POST`   | `/todos`         | Yes  | `{ task, dueDate? }`          | `200`   | Creates a todo for the caller        |
 | `PUT`    | `/todos/:id`     | Yes  | `{ completed }`               | `200`   | `404` if the todo is not the caller's |
 | `DELETE` | `/todos/:id`     | Yes  | —                             | `200`   | `404` if the todo is not the caller's |
 
