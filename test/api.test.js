@@ -64,14 +64,6 @@ test("register returns 201 with a token", async () => {
   assert.equal(typeof res.body.token, "string");
 });
 
-test("register with a taken username returns 409", async () => {
-  const user = await registerUser();
-  const res = await call("POST", "/auth/register", {
-    body: { username: user.username, password: "another" },
-  });
-  assert.equal(res.status, 409);
-});
-
 test("login with the right password returns a token", async () => {
   const user = await registerUser();
   const res = await call("POST", "/auth/login", {

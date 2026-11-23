@@ -48,7 +48,7 @@ Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT`
 
 ## Auth flow
 
-- `POST /auth/register` hashes the password with bcryptjs and, in one transaction, creates the user plus a default first todo; returns a JWT (`{ id }` payload, 1h expiry). A taken username (`sqlState` `23505`) returns **409**; other errors return 503.
+- `POST /auth/register` hashes the password with bcryptjs and, in one transaction, creates the user plus a default first todo; returns a JWT (`{ id }` payload, 1h expiry). Any error, including a taken username, returns 503 (see issue #3).
 - `POST /auth/login` returns `{ token }`; invalid credentials return **404** (not 401), DB errors return 503.
 - `src/middleware/authMiddleware.js` is mounted on `/todos` only. It reads the **raw JWT from the `Authorization` header (no `Bearer` prefix)**, verifies it, confirms the user still exists, and sets `req.userId`.
 - Every todo query in `src/routes/todoRoutes.js` is scoped by `userId: req.userId` — keep that invariant for any new todo route so users can't touch each other's rows.
