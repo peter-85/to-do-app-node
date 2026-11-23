@@ -52,4 +52,4 @@ Required env (in `.env` locally): `DATABASE_URL`, `JWT_SECRET`. Optional: `PORT`
 - `POST /auth/login` returns `{ token }`; invalid credentials return **404** (not 401), DB errors return 503.
 - `src/middleware/authMiddleware.js` is mounted on `/todos` only. It reads the JWT from the `Authorization` header as **`Bearer <token>`** (scheme case-insensitive) or, for backward compatibility, as the raw token; any other value is treated as a raw token. It verifies it, confirms the user still exists, and sets `req.userId`.
 - Every todo query in `src/routes/todoRoutes.js` is scoped by `userId: req.userId` — keep that invariant for any new todo route so users can't touch each other's rows.
-- The frontend sends `completed` as 0/1; `PUT /todos/:id` normalises it with `Boolean()`.
+- `PUT /todos/:id` updates only the fields sent (`task`, `dueDate`, `completed`; at least one) and validates the whole body before the lookup, so an invalid body is `400` even for another user's todo. `completed` accepts `true`/`false`/`1`/`0` only; `dueDate: null` clears the due date.

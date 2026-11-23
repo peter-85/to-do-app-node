@@ -127,8 +127,15 @@ accepted for backward compatibility, for now.
 | `POST`   | `/auth/login`    | No   | `{ username, password }`      | `200`   | Returns `{ token }`                  |
 | `GET`    | `/todos`         | Yes  | —                             | `200`   | Returns only the caller's todos      |
 | `POST`   | `/todos`         | Yes  | `{ task, dueDate? }`          | `200`   | Creates a todo for the caller        |
-| `PUT`    | `/todos/:id`     | Yes  | `{ completed }`               | `200`   | `404` if the todo is not the caller's |
+| `PUT`    | `/todos/:id`     | Yes  | `{ task?, dueDate?, completed? }` | `200` | Updates only the fields sent; `404` if the todo is not the caller's |
 | `DELETE` | `/todos/:id`     | Yes  | —                             | `200`   | `404` if the todo is not the caller's |
+
+`PUT /todos/:id` needs at least one of `task`, `dueDate` and `completed`, and returns `400`
+with a message when the body is invalid: `Nothing to update` (none of them sent),
+`Invalid task` (not a string, or empty after trimming; the text is stored trimmed),
+`Invalid dueDate` (same formats as `POST`; `null` clears the due date) or
+`Invalid completed` (only `true`, `false`, `1` or `0`). If any field is invalid, nothing
+is changed.
 
 Both auth endpoints return `404` for invalid credentials and `503` if the database call
 fails. Requests to `/todos` without a valid token get `401`.
