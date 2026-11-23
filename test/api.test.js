@@ -366,12 +366,18 @@ test("PUT rejects invalid values with 400 and changes nothing", async () => {
     [{ task: 5 }, "Invalid task"],
     [{ dueDate: "2026-02-30" }, "Invalid dueDate"],
     [{ task: "ok", dueDate: "not-a-date" }, "Invalid dueDate"], // valid task is not written either
+    [{ task: "ok", completed: 2 }, "Invalid completed"], // nor here
   ];
   for (const [body, message] of cases) {
     const res = await updateTodo(user.token, todo.id, body);
     assert.equal(res.status, 400, `body: ${JSON.stringify(body)}`);
     assert.deepEqual(res.body, { message });
   }
+
+  // The body is validated before the lookup, so a todo that doesn't exist is 400 too
+  const missing = await updateTodo(user.token, 999999999, {});
+  assert.equal(missing.status, 400);
+  assert.deepEqual(missing.body, { message: "Nothing to update" });
 
   const after = await getTodo(user.token, todo.id);
   assert.equal(after.task, "keep");

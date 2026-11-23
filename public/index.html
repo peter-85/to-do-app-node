@@ -144,6 +144,13 @@
       updateNavCount();
       updateHeaderText();
 
+      // Close the edit form if its todo is gone (e.g. deleted)
+      if (editingId !== null && !todos.some((val) => val.id === editingId)) {
+        editingId = null;
+      }
+      // Keep what the user has typed in an open edit form across re-renders
+      const draft = readEditDraft();
+
       let todoList = ``;
       todos
         .filter((val) => {
@@ -161,7 +168,7 @@
             : "";
           if (taskIndex === editingId) {
             todoList += `
-            <div class="card todo-item" onkeydown="editKeydown(event, ${taskIndex})">
+            <div class="card todo-item" id="editForm" data-id="${taskIndex}" onkeydown="editKeydown(event, ${taskIndex})">
                 <input id="editTaskInput" aria-label="Task" />
                 <input id="editDueDateInput" type="date" aria-label="Due date (optional)" />
                 <div class="todo-buttons">
@@ -204,6 +211,29 @@
         </div>
         `;
       main.innerHTML = todoList;
+      fillEditForm(draft);
+    }
+
+    // The values typed in the open edit form, if it is for the todo being edited
+    function readEditDraft() {
+      const form = document.getElementById("editForm");
+      if (!form || Number(form.dataset.id) !== editingId) return null;
+      return {
+        task: document.getElementById("editTaskInput").value,
+        dueDate: document.getElementById("editDueDateInput").value,
+      };
+    }
+
+    // Fill the edit form (if shown) from the draft, or else from the saved todo.
+    // Values are set via the DOM (not the template) so task text is used as-is.
+    function fillEditForm(draft) {
+      const taskInput = document.getElementById("editTaskInput");
+      if (!taskInput) return;
+      const todo = todos.find((val) => val.id === editingId);
+      taskInput.value = draft ? draft.task : todo.task;
+      document.getElementById("editDueDateInput").value = draft
+        ? draft.dueDate
+        : (todo.dueDate ?? "");
     }
 
     // showDashboard()
@@ -331,13 +361,8 @@
 
     function startEdit(index) {
       editingId = index;
-      renderTodos();
-      // Set values via the DOM (not the template) so task text is used as-is
-      const todo = todos.find((val) => val.id === index);
-      const taskInput = document.getElementById("editTaskInput");
-      taskInput.value = todo.task;
-      document.getElementById("editDueDateInput").value = todo.dueDate ?? "";
-      taskInput.focus();
+      renderTodos(); // fills the form from the saved todo
+      document.getElementById("editTaskInput").focus();
     }
 
     function cancelEdit() {
