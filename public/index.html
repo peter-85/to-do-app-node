@@ -279,7 +279,7 @@
     async function fetchTodos() {
       isLoading = true;
       const response = await fetch(apiBase + "todos", {
-        headers: { Authorization: token },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const todosData = await response.json();
       todos = todosData;
@@ -293,7 +293,7 @@
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           task: todos.find((val) => val.id === index).task,
@@ -308,7 +308,7 @@
       await fetch(apiBase + "todos" + "/" + index, {
         method: "DELETE",
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
       });
       fetchTodos();
@@ -329,7 +329,7 @@
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
         },
         // Omit dueDate when no date is picked
         body: JSON.stringify(dueDate ? { task, dueDate } : { task }),

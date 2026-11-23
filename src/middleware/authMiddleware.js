@@ -1,8 +1,16 @@
 import jwt from "jsonwebtoken";
 import { db } from "../prisma/db.ts";
 
+// Accepts "Bearer <token>" (scheme matched case-insensitively) and, for backward
+// compatibility, a raw token. Any other value is treated as a raw token.
+function extractToken(header) {
+  const value = (header ?? "").trim();
+  const bearer = value.match(/^bearer(?:\s+(.*))?$/i);
+  return bearer ? (bearer[1] ?? "").trim() : value;
+}
+
 const authMiddleware = async (req, res, next) => {
-  const token = req.header("authorization"); // Get the token from the Authorization header
+  const token = extractToken(req.header("authorization"));
   if (!token) {
     return res.status(401).json({ message: "No token provided" });
   }
