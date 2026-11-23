@@ -34,10 +34,6 @@ router.post("/register", async (req, res) => {
 
     res.status(201).json({ token });
   } catch (error) {
-    // 23505 = unique violation: the username is already registered
-    if (error?.sqlState === "23505") {
-      return res.status(409).json({ message: "Username already taken" });
-    }
     console.error("Error registering user:", error);
     res.status(503).json({ message: "Internal server error" });
   }
