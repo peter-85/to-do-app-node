@@ -32,10 +32,12 @@ after(async () => {
 
 // --- helpers ---------------------------------------------------------------
 
-async function call(method, path, { body, token } = {}) {
+// `token` is sent as "Bearer <token>"; `authorization` sends a header value verbatim.
+async function call(method, path, { body, token, authorization } = {}) {
   const headers = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = token; // raw JWT, no "Bearer" prefix
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (authorization !== undefined) headers["Authorization"] = authorization;
   const res = await fetch(baseUrl + path, {
     method,
     headers,
@@ -99,6 +101,31 @@ test("login with a wrong password returns 404", async () => {
 test("/todos without a token or with an invalid token returns 401", async () => {
   assert.equal((await call("GET", "/todos")).status, 401);
   assert.equal((await call("GET", "/todos", { token: "not-a-jwt" })).status, 401);
+});
+
+test("/todos accepts Bearer in any case, and the raw token", async () => {
+  const user = await registerUser();
+  for (const authorization of [
+    `Bearer ${user.token}`,
+    `bearer ${user.token}`,
+    `BEARER   ${user.token}`,
+    user.token, // raw token, kept for backward compatibility
+  ]) {
+    const res = await call("GET", "/todos", { authorization });
+    assert.equal(res.status, 200, `header: ${authorization}`);
+    assert.equal(res.body.length, 1);
+  }
+});
+
+test("malformed Authorization headers return 401", async () => {
+  const empty = await call("GET", "/todos", { authorization: "Bearer" });
+  assert.equal(empty.status, 401);
+  assert.deepEqual(empty.body, { message: "No token provided" });
+  for (const authorization of ["Bearer not-a-jwt", "Basic abc"]) {
+    const res = await call("GET", "/todos", { authorization });
+    assert.equal(res.status, 401, `header: ${authorization}`);
+    assert.deepEqual(res.body, { message: "Invalid token" });
+  }
 });
 
 // --- todos -----------------------------------------------------------------

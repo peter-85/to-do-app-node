@@ -117,8 +117,9 @@ different database, and `--dry-run` to preview the operations first.
 
 ## API
 
-All todo routes require an `Authorization` header containing the raw JWT returned by
-register or login (no `Bearer` prefix).
+All todo routes require an `Authorization: Bearer <token>` header, where `<token>` is the
+JWT returned by register or login. The raw JWT without the `Bearer` prefix is still
+accepted for backward compatibility, for now.
 
 | Method   | Endpoint         | Auth | Body                          | Success | Notes                                |
 | -------- | ---------------- | ---- | ----------------------------- | ------- | ------------------------------------ |
