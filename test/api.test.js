@@ -169,17 +169,28 @@ test("users cannot see, update or delete each other's todos", async () => {
 
   const todo = await call("POST", "/todos", {
     token: alice.token,
-    body: { task: "Alice's todo" },
+    body: { task: "Alice's todo", dueDate: "2029-06-01" },
   });
 
   const bobsList = await call("GET", "/todos", { token: bob.token });
   assert.ok(!bobsList.body.some((t) => t.id === todo.body.id));
 
-  const update = await call("PUT", `/todos/${todo.body.id}`, {
+  for (const body of [
+    { completed: 1 },
+    { completed: false },
+    { task: "x" },
+    { dueDate: "2030-01-01" },
+  ]) {
+    const update = await call("PUT", `/todos/${todo.body.id}`, { token: bob.token, body });
+    assert.equal(update.status, 404, `body: ${JSON.stringify(body)}`);
+  }
+
+  // An invalid body is rejected before the lookup, so it is 400, not 404
+  const invalid = await call("PUT", `/todos/${todo.body.id}`, {
     token: bob.token,
-    body: { completed: 1 },
+    body: { task: "" },
   });
-  assert.equal(update.status, 404);
+  assert.equal(invalid.status, 400);
 
   const remove = await call("DELETE", `/todos/${todo.body.id}`, {
     token: bob.token,
@@ -191,6 +202,8 @@ test("users cannot see, update or delete each other's todos", async () => {
   const stillThere = alicesList.body.find((t) => t.id === todo.body.id);
   assert.ok(stillThere);
   assert.equal(stillThere.completed, false);
+  assert.equal(stillThere.task, "Alice's todo");
+  assert.equal(stillThere.dueDate, "2029-06-01");
 });
 
 // --- due dates (#12) -------------------------------------------------------
@@ -263,15 +276,105 @@ test("GET /todos returns dueDate on every todo, no overdue field, in id order", 
   assert.deepEqual(ids, [...ids].sort((x, y) => x - y));
 });
 
-test("PUT /todos/:id keeps the dueDate", async () => {
+// Replaces the #12 test "PUT /todos/:id keeps the dueDate": since #7, PUT writes a
+// dueDate it is sent, but one that is not sent is still kept.
+test("PUT /todos/:id without a dueDate keeps the dueDate", async () => {
   const user = await registerUser();
   const created = await createTodo(user.token, { task: "due", dueDate: "2020-01-01" });
 
   const updated = await call("PUT", `/todos/${created.body.id}`, {
     token: user.token,
-    body: { completed: 1, dueDate: "2030-12-31" }, // dueDate is ignored by PUT
+    body: { completed: 1 },
   });
   assert.equal(updated.status, 200);
   assert.equal(updated.body.completed, true);
+  assert.equal(updated.body.task, "due");
   assert.equal(updated.body.dueDate, "2020-01-01");
+});
+
+// --- editing todos (#7) ----------------------------------------------------
+
+function updateTodo(token, id, body) {
+  return call("PUT", `/todos/${id}`, { token, body });
+}
+
+async function getTodo(token, id) {
+  const list = await call("GET", "/todos", { token });
+  return list.body.find((t) => t.id === id);
+}
+
+test("PUT toggles completed both ways", async () => {
+  const user = await registerUser();
+  const { body: todo } = await createTodo(user.token, { task: "toggle" });
+
+  const done = await updateTodo(user.token, todo.id, { completed: true });
+  assert.equal(done.status, 200);
+  assert.equal(done.body.completed, true);
+
+  const reopened = await updateTodo(user.token, todo.id, { completed: false });
+  assert.equal(reopened.status, 200);
+  assert.equal(reopened.body.completed, false);
+  assert.equal((await getTodo(user.token, todo.id)).completed, false);
+
+  // 0 also reopens (the frontend used to send 0/1)
+  await updateTodo(user.token, todo.id, { completed: 1 });
+  const zero = await updateTodo(user.token, todo.id, { completed: 0 });
+  assert.equal(zero.body.completed, false);
+});
+
+test("PUT updates only the fields sent", async () => {
+  const user = await registerUser();
+  const { body: todo } = await createTodo(user.token, { task: "orig", dueDate: "2029-01-01" });
+  await updateTodo(user.token, todo.id, { completed: true });
+
+  const text = await updateTodo(user.token, todo.id, { task: "New text" });
+  assert.equal(text.status, 200);
+  assert.equal(text.body.task, "New text");
+  assert.equal(text.body.completed, true);
+  assert.equal(text.body.dueDate, "2029-01-01");
+
+  const padded = await updateTodo(user.token, todo.id, { task: "  Padded  " });
+  assert.equal(padded.body.task, "Padded");
+
+  const date = await updateTodo(user.token, todo.id, { dueDate: "2030-12-31" });
+  assert.equal(date.status, 200);
+  assert.equal(date.body.dueDate, "2030-12-31");
+  assert.equal(date.body.task, "Padded");
+  assert.equal(date.body.completed, true);
+
+  const dateTime = await updateTodo(user.token, todo.id, { dueDate: "2030-12-31T10:00:00Z" });
+  assert.equal(dateTime.body.dueDate, "2030-12-31");
+
+  const cleared = await updateTodo(user.token, todo.id, { dueDate: null });
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.body.dueDate, null);
+  assert.equal((await getTodo(user.token, todo.id)).dueDate, null);
+});
+
+test("PUT rejects invalid values with 400 and changes nothing", async () => {
+  const user = await registerUser();
+  const { body: todo } = await createTodo(user.token, { task: "keep", dueDate: "2029-01-01" });
+
+  const cases = [
+    [{}, "Nothing to update"],
+    [{ completed: "false" }, "Invalid completed"],
+    [{ completed: 2 }, "Invalid completed"],
+    [{ completed: null }, "Invalid completed"],
+    [{ task: "" }, "Invalid task"],
+    [{ task: "   " }, "Invalid task"],
+    [{ task: null }, "Invalid task"],
+    [{ task: 5 }, "Invalid task"],
+    [{ dueDate: "2026-02-30" }, "Invalid dueDate"],
+    [{ task: "ok", dueDate: "not-a-date" }, "Invalid dueDate"], // valid task is not written either
+  ];
+  for (const [body, message] of cases) {
+    const res = await updateTodo(user.token, todo.id, body);
+    assert.equal(res.status, 400, `body: ${JSON.stringify(body)}`);
+    assert.deepEqual(res.body, { message });
+  }
+
+  const after = await getTodo(user.token, todo.id);
+  assert.equal(after.task, "keep");
+  assert.equal(after.dueDate, "2029-01-01");
+  assert.equal(after.completed, false);
 });

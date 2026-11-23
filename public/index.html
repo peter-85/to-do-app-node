@@ -57,6 +57,7 @@
     let isRegistration = false;
     let selectedTab = "All";
     let todos = [];
+    let editingId = null; // id of the todo whose edit form is open
 
     const apiBase = "/";
 
@@ -158,13 +159,33 @@
           const dueLine = todo.dueDate
             ? `<p class="todo-due">Due ${todo.dueDate}${overdue ? ' <span class="overdue-label">Overdue</span>' : ""}</p>`
             : "";
+          if (taskIndex === editingId) {
+            todoList += `
+            <div class="card todo-item" onkeydown="editKeydown(event, ${taskIndex})">
+                <input id="editTaskInput" aria-label="Task" />
+                <input id="editDueDateInput" type="date" aria-label="Due date (optional)" />
+                <div class="todo-buttons">
+                    <button onclick="saveEdit(${taskIndex})">
+                        <h6>Save</h6>
+                    </button>
+                    <button onclick="cancelEdit()">
+                        <h6>Cancel</h6>
+                    </button>
+                </div>
+            </div>
+            `;
+            return;
+          }
           todoList += `
             <div class="card todo-item${overdue ? " todo-overdue" : ""}">
                 <p>${todo.task}</p>
                 ${dueLine}
                 <div class="todo-buttons">
-                    <button onclick="updateTodo(${taskIndex})" ${todo.completed ? "disabled" : ""}>
-                        <h6>Done</h6>
+                    <button onclick="toggleTodo(${taskIndex})">
+                        <h6>${todo.completed ? "Undo" : "Done"}</h6>
+                    </button>
+                    <button onclick="startEdit(${taskIndex})">
+                        <h6>Edit</h6>
                     </button>
                     <button onclick="deleteTodo(${taskIndex})">
                         <h6>Delete</h6>
@@ -287,19 +308,70 @@
       renderTodos();
     }
 
-    async function updateTodo(index) {
-      // set task complete status to true
-      await fetch(apiBase + "todos" + "/" + index, {
+    // Sends only the given fields; returns the fetch response
+    function updateTodo(index, changes) {
+      return fetch(apiBase + "todos" + "/" + index, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          task: todos.find((val) => val.id === index).task,
-          completed: 1,
-        }),
+        body: JSON.stringify(changes),
       });
+    }
+
+    // Done ⇄ Undo
+    async function toggleTodo(index) {
+      const todo = todos.find((val) => val.id === index);
+      await updateTodo(index, { completed: !todo.completed });
+      fetchTodos();
+    }
+
+    // INLINE EDIT
+
+    function startEdit(index) {
+      editingId = index;
+      renderTodos();
+      // Set values via the DOM (not the template) so task text is used as-is
+      const todo = todos.find((val) => val.id === index);
+      const taskInput = document.getElementById("editTaskInput");
+      taskInput.value = todo.task;
+      document.getElementById("editDueDateInput").value = todo.dueDate ?? "";
+      taskInput.focus();
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      renderTodos();
+    }
+
+    function editKeydown(event, index) {
+      // Only from the inputs: Enter on a focused button already fires its click
+      if (event.key === "Enter" && event.target.tagName === "INPUT") saveEdit(index);
+      if (event.key === "Escape") cancelEdit();
+    }
+
+    async function saveEdit(index) {
+      const todo = todos.find((val) => val.id === index);
+      const task = document.getElementById("editTaskInput").value;
+      const dueDate = document.getElementById("editDueDateInput").value || null;
+
+      // Send only what changed; an emptied date input clears the due date
+      const changes = {};
+      if (task.trim() !== todo.task) changes.task = task;
+      if (dueDate !== todo.dueDate) changes.dueDate = dueDate;
+
+      if (Object.keys(changes).length === 0) {
+        cancelEdit();
+        return;
+      }
+
+      const response = await updateTodo(index, changes);
+      if (!response.ok) {
+        // e.g. 400 for empty text: keep the form open
+        return;
+      }
+      editingId = null;
       fetchTodos();
     }
 
