@@ -257,7 +257,8 @@
           // show dashboard
           showDashboard();
         } else {
-          throw Error("❌ Failed to authenticate...");
+          // show the API's message (e.g. "Username already taken") when it sends one
+          throw Error(data.message || "❌ Failed to authenticate...");
         }
       } catch (err) {
         console.log(err.message);

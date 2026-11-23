@@ -64,6 +64,21 @@ test("register returns 201 with a token", async () => {
   assert.equal(typeof res.body.token, "string");
 });
 
+test("register with a taken username returns 409 and keeps the first account", async () => {
+  const user = await registerUser();
+  const res = await call("POST", "/auth/register", {
+    body: { username: user.username, password: "another" },
+  });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.message, "Username already taken");
+
+  const login = await call("POST", "/auth/login", {
+    body: { username: user.username, password: user.password },
+  });
+  assert.equal(login.status, 200);
+  assert.equal(typeof login.body.token, "string");
+});
+
 test("login with the right password returns a token", async () => {
   const user = await registerUser();
   const res = await call("POST", "/auth/login", {
