@@ -1,0 +1,50 @@
+name: SpecPilot review
+
+# Runs the SpecPilot spec-reviewer on pull requests from specpilot/issue-<n> branches
+# and posts its report as a PR comment.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: specpilot-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Only branches made by SpecPilot have a spec to review against.
+    if: startsWith(github.head_ref, 'specpilot/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The plugin's GitHub MCP server reads this.
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out the PR branch with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review against the spec
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: "https://github.com/peter-85/spec-pilot.git"
+          plugins: "specpilot@specpilot"
+          prompt: |
+            Use the spec-reviewer subagent to review this pull request
+            (branch ${{ github.head_ref }}) against its spec in specs/.
+            Compare against origin/main. Do not run the test suite: the CI test job covers it.
+            Then post the subagent's report, unchanged, as one comment on
+            PR #${{ github.event.pull_request.number }} with `gh pr comment`.
+          claude_args: |
+            --model claude-sonnet-5-5
+            --max-turns 20
+            --allowedTools "Read,Grep,Glob,Task,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"
