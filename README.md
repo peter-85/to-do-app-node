@@ -137,6 +137,13 @@ with a message when the body is invalid: `Nothing to update` (none of them sent)
 `Invalid completed` (only `true`, `false`, `1` or `0`). If any field is invalid, nothing
 is changed.
 
+Both auth endpoints return `400` with a message when `username` or `password` is missing,
+not a string or empty: `Username is required` or `Password is required` (the username is
+trimmed on both endpoints; the password never is). Register also checks lengths:
+`Username must be between 3 and 254 characters`, `Password must be at least 8 characters`
+and `Password is too long (max 72 bytes)`. Login does not check lengths, so older accounts
+can still sign in.
+
 Both auth endpoints return `404` for invalid credentials and `503` if the database call
 fails. Requests to `/todos` without a valid token get `401`.
 

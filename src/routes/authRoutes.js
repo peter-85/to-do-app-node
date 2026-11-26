@@ -7,8 +7,35 @@ const router = express.Router();
 
 const DEFAULT_TODO = "Hello :) Add your first todo!";
 
+// Checks the credentials in a request body before any bcrypt or database call.
+// Returns { username, password } (username trimmed) or { error } with the 400 message.
+// Length limits apply to register only, so accounts made under older rules can still log in.
+function parseCredentials(body, { checkLengths }) {
+  const { username, password } =
+    body && typeof body === "object" && !Array.isArray(body) ? body : {};
+
+  const trimmed = typeof username === "string" ? username.trim() : "";
+  if (!trimmed) return { error: "Username is required" };
+  if (typeof password !== "string" || !password) return { error: "Password is required" };
+
+  if (checkLengths) {
+    const usernameLength = [...trimmed].length;
+    if (usernameLength < 3 || usernameLength > 254) {
+      return { error: "Username must be between 3 and 254 characters" };
+    }
+    if ([...password].length < 8) return { error: "Password must be at least 8 characters" };
+    // bcrypt ignores everything after 72 bytes, so longer passwords are refused, not truncated
+    if (Buffer.byteLength(password, "utf8") > 72) {
+      return { error: "Password is too long (max 72 bytes)" };
+    }
+  }
+
+  return { username: trimmed, password };
+}
+
 router.post("/register", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, error } = parseCredentials(req.body, { checkLengths: true });
+  if (error) return res.status(400).json({ message: error });
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -44,7 +71,8 @@ router.post("/register", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, error } = parseCredentials(req.body, { checkLengths: false });
+  if (error) return res.status(400).json({ message: error });
 
   try {
     const user = await db.orm.public.User.where({ username }).first();
