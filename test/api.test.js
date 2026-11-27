@@ -69,7 +69,7 @@ test("register returns 201 with a token", async () => {
 test("register with a taken username returns 409 and keeps the first account", async () => {
   const user = await registerUser();
   const res = await call("POST", "/auth/register", {
-    body: { username: user.username, password: "another" },
+    body: { username: user.username, password: "another-pass" },
   });
   assert.equal(res.status, 409);
   assert.equal(res.body.message, "Username already taken");
@@ -96,6 +96,98 @@ test("login with a wrong password returns 404", async () => {
     body: { username: user.username, password: "wrong" },
   });
   assert.equal(res.status, 404);
+});
+
+// --- credential validation (#4) --------------------------------------------
+
+// A unique username of exactly `length` characters (at least 3).
+function usernameOfLength(length) {
+  return (randomUUID().replace(/-/g, "") + "x".repeat(length)).slice(0, length);
+}
+
+async function expect400(path, body, message) {
+  const res = await call("POST", path, { body });
+  assert.equal(res.status, 400, `${path} ${JSON.stringify(body)}`);
+  if (message) assert.equal(res.body.message, message);
+}
+
+test("register and login return 400 for missing, empty or non-string credentials", async () => {
+  for (const path of ["/auth/register", "/auth/login"]) {
+    assert.equal((await call("POST", path)).status, 400, `${path} with no body`);
+    await expect400(path, {}, "Username is required");
+    await expect400(path, [], "Username is required");
+    await expect400(path, { password: "secret123" }, "Username is required");
+    await expect400(path, { username: "", password: "secret123" }, "Username is required");
+    await expect400(path, { username: "   ", password: "secret123" }, "Username is required");
+    await expect400(path, { username: 123, password: "secret123" }, "Username is required");
+    await expect400(path, { username: "someone" }, "Password is required");
+    await expect400(path, { username: "someone", password: "" }, "Password is required");
+    await expect400(path, { username: "someone", password: ["x"] }, "Password is required");
+    // both invalid: the username error wins
+    await expect400(path, { username: "", password: "" }, "Username is required");
+  }
+});
+
+test("register enforces username length 3–254 after trimming", async () => {
+  const message = "Username must be between 3 and 254 characters";
+  await expect400("/auth/register", { username: "ab", password: "secret123" }, message);
+  await expect400("/auth/register", { username: "  ab  ", password: "secret123" }, message);
+  await expect400(
+    "/auth/register",
+    { username: usernameOfLength(255), password: "secret123" },
+    message,
+  );
+
+  for (const length of [3, 254]) {
+    const res = await call("POST", "/auth/register", {
+      body: { username: usernameOfLength(length), password: "secret123" },
+    });
+    assert.equal(res.status, 201, `username of ${length} characters`);
+  }
+});
+
+test("register enforces a password of at least 8 characters and at most 72 bytes", async () => {
+  const tooShort = "Password must be at least 8 characters";
+  const tooLong = "Password is too long (max 72 bytes)";
+  await expect400("/auth/register", { username: usernameOfLength(20), password: "1234567" }, tooShort);
+  await expect400("/auth/register", { username: usernameOfLength(20), password: "a".repeat(73) }, tooLong);
+  // 37 two-byte characters = 74 bytes
+  await expect400("/auth/register", { username: usernameOfLength(20), password: "é".repeat(37) }, tooLong);
+
+  for (const password of ["12345678", "a".repeat(72)]) {
+    const res = await call("POST", "/auth/register", {
+      body: { username: usernameOfLength(20), password },
+    });
+    assert.equal(res.status, 201, `password of ${password.length} characters`);
+  }
+});
+
+test("a rejected registration creates no user", async () => {
+  const username = usernameOfLength(20);
+  await expect400("/auth/register", { username, password: "short" });
+  const login = await call("POST", "/auth/login", { body: { username, password: "short" } });
+  assert.equal(login.status, 404);
+});
+
+test("usernames are trimmed on register and login", async () => {
+  const username = usernameOfLength(20);
+  const reg = await call("POST", "/auth/register", {
+    body: { username: `  ${username}  `, password: "secret123" },
+  });
+  assert.equal(reg.status, 201);
+
+  for (const sent of [username, ` ${username}\t`]) {
+    const login = await call("POST", "/auth/login", { body: { username: sent, password: "secret123" } });
+    assert.equal(login.status, 200, JSON.stringify(sent));
+  }
+});
+
+test("login does not apply the register length limits", async () => {
+  const user = await registerUser();
+  const res = await call("POST", "/auth/login", { body: { username: user.username, password: "wrong" } });
+  assert.equal(res.status, 404);
+  const unknown = await call("POST", "/auth/login", { body: { username: "ab", password: "x" } });
+  assert.equal(unknown.status, 404);
 });
 
 test("/todos without a token or with an invalid token returns 401", async () => {
