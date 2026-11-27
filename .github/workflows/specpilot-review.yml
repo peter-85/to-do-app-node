@@ -33,7 +33,6 @@ jobs:
           fetch-depth: 0
 
       - name: Review against the spec
-        id: review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -43,33 +42,9 @@ jobs:
             Use the spec-reviewer subagent to review this pull request
             (branch ${{ github.head_ref }}) against its spec in specs/.
             Compare against origin/main. Do not run the test suite: the CI test job covers it.
-            Tell the subagent to post its report as one comment on
-            PR #${{ github.event.pull_request.number }} with gh pr comment,
-            and to reply to you only with "posted".
+            Then post the subagent's report, unchanged, as one comment on
+            PR #${{ github.event.pull_request.number }} with `gh pr comment`.
           claude_args: |
             --model claude-sonnet-5-5
             --max-turns 20
             --allowedTools "Read,Grep,Glob,Task,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"
-
-      # Token usage and cost of the review, to compare prompt changes between runs.
-      - name: Report token usage
-        if: always() && steps.review.outputs.execution_file != ''
-        run: |
-          jq '[.[] | select(.type == "result")] | last
-              | {num_turns, duration_ms, total_cost_usd, usage, modelUsage}' \
-            "${{ steps.review.outputs.execution_file }}" | tee usage.json
-          {
-            echo '### Token usage'
-            echo '```json'
-            cat usage.json
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Keep the usage for comparison
-        if: always() && steps.review.outputs.execution_file != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: review-usage-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
-          path: |
-            usage.json
-            ${{ steps.review.outputs.execution_file }}
