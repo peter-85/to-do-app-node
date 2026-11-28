@@ -1,0 +1,104 @@
+name: SpecPilot spec
+
+# When an issue gets the "specpilot" label: write a spec for it on branch
+# specpilot/issue-<n>, post the open questions on the issue, and label it
+# spec:needs-input (or spec:approved if nothing blocks).
+# Uses Sonnet by default; add the "model:haiku" label to the issue before
+# "specpilot" to run on Haiku instead.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: specpilot-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  spec:
+    if: github.event.label.name == 'specpilot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GITHUB_TOKEN: ${{ github.token }} # for the plugin's MCP server
+      GH_TOKEN: ${{ github.token }} # for the gh CLI
+      ISSUE: ${{ github.event.issue.number }}
+      BRANCH: specpilot/issue-${{ github.event.issue.number }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create the spec branch
+        run: |
+          git config user.name "specpilot[bot]"
+          git config user.email "specpilot@users.noreply.github.com"
+          git switch -C "$BRANCH"
+
+      - name: Write the spec
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: "https://github.com/peter-85/spec-pilot.git"
+          plugins: "specpilot@specpilot"
+          prompt: |
+            /specpilot:write-spec ${{ github.event.issue.number }}
+
+            You are running in CI with no human present:
+            - Never ask questions or wait for answers.
+            - Read the issue with `gh issue view ${{ github.event.issue.number }}`.
+            - If specs/issue-${{ github.event.issue.number }}.md already exists, overwrite it.
+            - Create or change only specs/issue-${{ github.event.issue.number }}.md. Do not touch any other file, and do not commit or push.
+          claude_args: |
+            --model ${{ contains(github.event.issue.labels.*.name, 'model:haiku') && 'claude-haiku-5-5' || 'claude-sonnet-5-5' }}
+            --max-turns 25
+            --allowedTools "Read,Grep,Glob,Write,Edit,Bash(gh issue view:*),Bash(git remote get-url:*)"
+
+      - name: Check that only the spec changed
+        run: |
+          SPEC="specs/issue-${ISSUE}.md"
+          test -f "$SPEC" || { echo "No spec was written."; exit 1; }
+          other=$(git status --porcelain | grep -v " ${SPEC}$" || true)
+          if [ -n "$other" ]; then
+            echo "The agent changed files other than the spec:"
+            echo "$other"
+            exit 1
+          fi
+
+      - name: Commit and push the spec
+        run: |
+          git add "specs/issue-${ISSUE}.md"
+          git commit -m "docs(spec): draft spec for #${ISSUE}"
+          git push --force -u origin "$BRANCH"
+
+      - name: Post the open questions and set the label
+        run: |
+          SPEC="specs/issue-${ISSUE}.md"
+          URL="${{ github.server_url }}/${{ github.repository }}/blob/${BRANCH}/${SPEC}"
+          QUESTIONS=$(awk '/^## Open questions/{f=1; next} /^## /{f=0} f' "$SPEC")
+
+          if grep -q '^Status: approved' "$SPEC"; then
+            LABEL="spec:approved"
+            INTRO="No blocking questions remain, so the spec is approved."
+          else
+            LABEL="spec:needs-input"
+            INTRO="Please answer the open questions by replying to this issue, for example: \`Q1: accept proposed. Q2: reject with 400.\`"
+          fi
+
+          {
+            echo "**SpecPilot draft spec:** [${SPEC}](${URL})"
+            echo
+            echo "$INTRO"
+            echo
+            echo "### Open questions"
+            echo "$QUESTIONS"
+          } > "$RUNNER_TEMP/comment.md"
+
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
+          gh issue edit "$ISSUE" --remove-label specpilot --add-label "$LABEL"
