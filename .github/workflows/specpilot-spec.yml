@@ -75,6 +75,10 @@ jobs:
         run: |
           git add "specs/issue-${ISSUE}.md"
           git commit -m "docs(spec): draft spec for #${ISSUE}"
+          # claude-code-action points git at a GitHub App token that it revokes
+          # when it finishes, so push with the workflow's own token instead.
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git push --force -u origin "$BRANCH"
 
       - name: Post the open questions and set the label
